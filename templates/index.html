@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Send Random HTTP UA Request</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-section {
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        input[type="text"], input[type="number"] {
+            flex-grow: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: vertical;
+        }
+        .result-section {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .result-item {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .loading-spinner {
+            display: none;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Send Random HTTP UA Request</h1>
+
+        <div class="form-section">
+            <div class="input-group">
+                <input type="text" id="urlInput" placeholder="Enter a URL...">
+                <button id="addUrlBtn">Add</button>
+            </div>
+            <textarea id="urlList" readonly placeholder="Added URLs will appear here."></textarea>
+            <div class="input-group" style="margin-top: 10px;">
+                <label for="numRequestsInput">Number of Requests:</label>
+                <input type="number" id="numRequestsInput" value="15" min="1" step="1">
+            </div>
+            <button id="startBtn" style="width: 100%;">Start</button>
+        </div>
+
+        <div class="result-section" id="resultSection" style="display: none;">
+            <h2>Results</h2>
+            <div id="resultsContent"></div>
+            <div id="loadingSpinner" class="loading-spinner">
+                <p>Sending requests...</p>
+                <!-- <img src="./spinner.gif" alt="Loading spinner" width="50"> -->
+                <img src="{{ url_for('static', filename='spinner.gif') }}" alt="Loading spinner" width="50">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlInput = document.getElementById('urlInput');
+            const addUrlBtn = document.getElementById('addUrlBtn');
+            const urlList = document.getElementById('urlList');
+            const numRequestsInput = document.getElementById('numRequestsInput');
+            const startBtn = document.getElementById('startBtn');
+            const resultSection = document.getElementById('resultSection');
+            const resultsContent = document.getElementById('resultsContent');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+
+            // Store URLs in a JavaScript array.
+            let urls = [];
+
+            // Handle adding a URL to the list.
+            addUrlBtn.addEventListener('click', () => {
+                const url = urlInput.value.trim();
+                if (url) {
+                    urls.push(url);
+                    urlList.value = urls.join('\n');
+                    urlInput.value = ''; // Clear the input field.
+                }
+            });
+
+            // Handle the "Start" button click.
+            startBtn.addEventListener('click', async () => {
+                if (urls.length === 0) {
+                    alert('Please add at least one URL.');
+                    return;
+                }
+
+                const numRequests = parseInt(numRequestsInput.value, 10);
+                if (isNaN(numRequests) || numRequests < 1) {
+                    alert('Please enter a valid number of requests (a positive integer).');
+                    return;
+                }
+
+                // Show loading spinner and clear previous results.
+                resultSection.style.display = 'block';
+                resultsContent.innerHTML = '';
+                loadingSpinner.style.display = 'block';
+                startBtn.disabled = true;
+
+                // Create a FormData object to send the data.
+                const formData = new FormData();
+                urls.forEach(url => formData.append('urls[]', url));
+                formData.append('num_requests', numRequests);
+
+                try {
+                    const response = await fetch('/send_requests', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        // Display the results.
+                        data.results.forEach(result => {
+                            const urlHeader = document.createElement('h3');
+                            urlHeader.textContent = `Results for: ${result.url}`;
+                            resultsContent.appendChild(urlHeader);
+
+                            const urlResultsList = document.createElement('ul');
+                            result.requests.forEach(req => {
+                                const listItem = document.createElement('li');
+                                listItem.textContent = `Request ${req.request_num}: User-Agent: ${req.user_agent}, Status: ${req.status_code} - ${req.message}`;
+                                urlResultsList.appendChild(listItem);
+                            });
+                            resultsContent.appendChild(urlResultsList);
+                        });
+                    } else {
+                        // Display an error message from the server.
+                        resultsContent.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`;
+                    }
+                } catch (error) {
+                    // Handle network or other errors.
+                    resultsContent.innerHTML = `<p style="color: red;">An error occurred: ${error.message}</p>`;
+                } finally {
+                    // Hide the spinner and re-enable the button.
+                    loadingSpinner.style.display = 'none';
+                    startBtn.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
