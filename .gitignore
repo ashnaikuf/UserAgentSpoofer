@@ -1,0 +1,23 @@
+# Python Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Byte-compiled / optimized / DLL files (Python cache)
+__pycache__/
+*.py[cod]
+*$py.class
+
+
+# MacOS specific files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Flask/Development specific
+.env
+instance/
+.pytest_cache/
+
+# Local logs
+*.log
